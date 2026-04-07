@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "User profile photo URL" },
+        "role": { "type": "string", "enum": ["patient", "caregiver", "healthcare_worker", "admin"], "description": "User role in the system" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PatientProfile": {
+      "title": "Patient Profile",
+      "description": "Detailed health profile for a sickle cell patient",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Patient's user ID" },
+        "fullName": { "type": "string", "description": "Full name of the patient" },
+        "dateOfBirth": { "type": "string", "format": "date", "description": "Patient's date of birth" },
+        "bloodGroup": { "type": "string", "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"], "description": "Patient's blood group" },
+        "genotype": { "type": "string", "enum": ["SS", "SC", "Sβ0", "Sβ+", "AS"], "description": "Sickle cell genotype" },
+        "caregiverId": { "type": "string", "description": "UID of the primary caregiver" }
+      },
+      "required": ["uid", "fullName", "genotype"]
+    },
+    "HealthRecord": {
+      "title": "Health Record",
+      "description": "Log of health events, crises, or checkups",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string", "description": "UID of the patient" },
+        "date": { "type": "string", "format": "date-time", "description": "Date of the record" },
+        "type": { "type": "string", "enum": ["crisis", "checkup", "medication", "other"], "description": "Type of health event" },
+        "description": { "type": "string", "description": "Details about the event" },
+        "severity": { "type": "number", "description": "Severity level (1-10)" },
+        "recordedBy": { "type": "string", "description": "UID of the person who recorded this" }
+      },
+      "required": ["patientId", "date", "type", "description"]
+    },
+    "CommunityPost": {
+      "title": "Community Post",
+      "description": "Post shared in the community forum",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string", "description": "UID of the author" },
+        "authorName": { "type": "string", "description": "Name of the author" },
+        "content": { "type": "string", "description": "Content of the post" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "likesCount": { "type": "number", "description": "Number of likes" }
+      },
+      "required": ["authorId", "authorName", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/patients/{patientId}": {
+      "schema": "PatientProfile",
+      "description": "Patient health profiles"
+    },
+    "/health_records/{recordId}": {
+      "schema": "HealthRecord",
+      "description": "Health event logs"
+    },
+    "/community_posts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Forum posts"
+    }
+  }
+}

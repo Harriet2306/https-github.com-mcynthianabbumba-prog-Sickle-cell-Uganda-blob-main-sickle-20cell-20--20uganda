@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, email format)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: patient, caregiver, healthcare_worker, admin)
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: patients
+    // Document ID: {patientId}
+    // Fields:
+    //   - uid: string (required, patient's user ID)
+    //   - fullName: string (required)
+    //   - dateOfBirth: string (optional, date format)
+    //   - bloodGroup: string (optional, enum)
+    //   - genotype: string (required, enum)
+    //   - caregiverId: string (optional)
+    //
+    // Collection: health_records
+    // Document ID: {recordId}
+    // Fields:
+    //   - patientId: string (required)
+    //   - date: timestamp (required)
+    //   - type: string (required, enum)
+    //   - description: string (required)
+    //   - severity: number (optional)
+    //   - recordedBy: string (required)
+    //
+    // Collection: community_posts
+    // Document ID: {postId}
+    // Fields:
+    //   - authorId: string (required)
+    //   - authorName: string (required)
+    //   - content: string (required)
+    //   - createdAt: timestamp (required)
+    //   - likesCount: number (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "harrietnamaggwa46@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['patient', 'caregiver', 'healthcare_worker', 'admin'];
+    }
+
+    function isValidPatient(data) {
+      return data.keys().hasAll(['uid', 'fullName', 'genotype']) &&
+             data.uid is string &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 100 &&
+             data.genotype in ['SS', 'SC', 'Sβ0', 'Sβ+', 'AS'];
+    }
+
+    function isValidHealthRecord(data) {
+      return data.keys().hasAll(['patientId', 'date', 'type', 'description', 'recordedBy']) &&
+             data.patientId is string &&
+             data.date is timestamp &&
+             data.type in ['crisis', 'checkup', 'medication', 'other'] &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
+             data.recordedBy == request.auth.uid;
+    }
+
+    function isValidCommunityPost(data) {
+      return data.keys().hasAll(['authorId', 'authorName', 'content', 'createdAt']) &&
+             data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() > 0 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 10000 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && 
+                    isValidUser(request.resource.data) &&
+                    request.resource.data.role == resource.data.role; // Role cannot be changed by user
+    }
+
+    match /patients/{patientId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isOwner(patientId) || isAdmin()) && isValidPatient(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(patientId) || isAdmin()) && isValidPatient(request.resource.data);
+    }
+
+    match /health_records/{recordId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.patientId) || isOwner(resource.data.recordedBy) || isAdmin());
+      allow create: if isAuthenticated() && isValidHealthRecord(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.recordedBy) && isValidHealthRecord(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.recordedBy) || isAdmin());
+    }
+
+    match /community_posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCommunityPost(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(resource.data.authorId) || isAdmin()) && isValidCommunityPost(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.authorId) || isAdmin());
+    }
+  }
+}
